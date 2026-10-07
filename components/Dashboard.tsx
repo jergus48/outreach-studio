@@ -25,7 +25,6 @@ const SLIDE_STAGES = [
 
 const today = () => new Date().toISOString().slice(0, 10);
 const isDue = (c: Company) => c.last_outcome === 'call_back' && !!c.last_followup && String(c.last_followup).slice(0, 10) <= today();
-const priority = (c: Company) => (isDue(c) ? 0 : !c.call_count ? 1 : ['no_answer', 'voicemail'].includes(c.last_outcome || '') ? 2 : 3);
 
 const FILTERS: { v: string; label: string; test: (c: Company) => boolean }[] = [
   { v: 'all', label: 'All companies', test: () => true },
@@ -65,37 +64,35 @@ export default function Dashboard({ email, admin }: { email: string; admin: bool
     return () => clearInterval(t);
   }, [jobs]);
 
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [sectors, setSectors] = useState<[string, number][]>([]);
+  const [stats, setStats] = useState({ total: 0, never: 0, due: 0, good: 0 });
+  const PAGE = 200;
+  const query = useRef({ q: '', filter: 'all', cfilter: 'all', sfilter: 'all', smart: true, page: 0 });
+  query.current = { q, filter, cfilter, sfilter, smart, page };
+
+  // Only the current page (200 rows) is loaded; filters and ordering run on the server.
   async function load() {
-    const r = await fetch('/api/companies');
-    if (r.ok) setRows(await r.json());
+    const c = query.current;
+    const p = new URLSearchParams({ q: c.q.trim(), filter: c.filter, country: c.cfilter, sector: c.sfilter, smart: c.smart ? '1' : '0', page: String(c.page) });
+    const r = await fetch('/api/companies?' + p);
+    if (!r.ok) return;
+    const j = await r.json();
+    setRows(j.rows); setTotal(j.total); setStats(j.stats); setSectors(j.sectors.map((x: any) => [x.sector, x.n]));
   }
-  useEffect(() => { load(); }, []);
+  useEffect(() => { setPage(0); }, [q, filter, cfilter, sfilter, smart]);
+  useEffect(() => {
+    const t = setTimeout(load, q ? 300 : 0);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, filter, cfilter, sfilter, smart, page]);
   useEffect(() => {
     if (!admin) return;
     fetch('/api/admin/users').then((r) => (r.ok ? r.json() : [])).then(setUsers);
   }, [admin]);
 
-  const shown = useMemo(() => {
-    const f = FILTERS.find((x) => x.v === filter)!;
-    const s = q.trim().toLowerCase();
-    let list = rows.filter((c) => f.test(c) && (cfilter === 'all' || c.country === cfilter) && (sfilter === 'all' || c.sector === sfilter) && (!s || [c.name, c.website, c.email, c.phone, c.sector].some((v) => (v || '').toLowerCase().includes(s))));
-    if (smart) list = [...list].sort((a, b) => priority(a) - priority(b));
-    return list;
-  }, [rows, q, filter, cfilter, sfilter, smart]);
-
-  // Sectors present in the data, most common first, so the filter only offers what exists.
-  const sectors = useMemo(() => {
-    const n = new Map<string, number>();
-    for (const c of rows) if (c.sector) n.set(c.sector, (n.get(c.sector) || 0) + 1);
-    return [...n.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  }, [rows]);
-
-  const stats = useMemo(() => ({
-    total: rows.length,
-    never: rows.filter((c) => !c.call_count).length,
-    due: rows.filter(isDue).length,
-    good: rows.filter((c) => ['interested', 'meeting_booked', 'email_sent'].includes(c.last_outcome || '')).length,
-  }), [rows]);
+  const shown = rows;
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
@@ -281,6 +278,12 @@ export default function Dashboard({ email, admin }: { email: string; admin: bool
           </select>
           <label className="mini"><input type="checkbox" checked={smart} onChange={(e) => setSmart(e.target.checked)} /> Smart order (follow-ups, then new)</label>
         </div>
+        {total > 0 && (
+          <div className="toolbar" style={{ justifyContent: 'flex-end', alignItems: 'center' }}>
+            <span style={{ color: 'var(--mute)', fontSize: 12 }}>{total.toLocaleString()} companies{total > PAGE ? ` · rows ${page * PAGE + 1}-${Math.min(total, (page + 1) * PAGE)}` : ''}</span>
+            {total > PAGE && <><button className="btn ghost sm" disabled={page === 0} onClick={() => setPage(page - 1)}>Prev</button><button className="btn ghost sm" disabled={(page + 1) * PAGE >= total} onClick={() => setPage(page + 1)}>Next</button></>}
+          </div>
+        )}
         <table className="t">
           <thead><tr><th></th><th>COMPANY</th><th>CONTACT</th><th>COUNTRY</th><th>CALL STATUS</th><th style={{ width: 420 }}>ACTIONS</th></tr></thead>
           <tbody>
@@ -345,9 +348,15 @@ export default function Dashboard({ email, admin }: { email: string; admin: bool
                 </Fragment>
               );
             })}
-            {!shown.length && <tr><td colSpan={6} style={{ color: 'var(--mute)', padding: 24 }}>{rows.length ? 'Nothing matches this filter.' : admin ? 'No companies yet. Add one above or upload a spreadsheet.' : 'No companies for your country yet. Ask your admin to check the country set for you.'}</td></tr>}
+            {!shown.length && <tr><td colSpan={6} style={{ color: 'var(--mute)', padding: 24 }}>{stats.total ? 'Nothing matches this filter.' : admin ? 'No companies yet. Add one above or upload a spreadsheet.' : 'No companies for your country yet. Ask your admin to check the country set for you.'}</td></tr>}
           </tbody>
         </table>
+        {total > PAGE && (
+          <div className="toolbar" style={{ justifyContent: 'flex-end', alignItems: 'center' }}>
+            <span style={{ color: 'var(--mute)', fontSize: 12 }}>{total.toLocaleString()} companies{total > PAGE ? ` · rows ${page * PAGE + 1}-${Math.min(total, (page + 1) * PAGE)}` : ''}</span>
+            {total > PAGE && <><button className="btn ghost sm" disabled={page === 0} onClick={() => setPage(page - 1)}>Prev</button><button className="btn ghost sm" disabled={(page + 1) * PAGE >= total} onClick={() => setPage(page + 1)}>Next</button></>}
+          </div>
+        )}
       </div>
     </div>
   );
