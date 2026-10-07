@@ -69,6 +69,9 @@ export default function Dashboard({ email, admin }: { email: string; admin: bool
   const [sectors, setSectors] = useState<[string, number][]>([]);
   const [stats, setStats] = useState({ total: 0, never: 0, due: 0, good: 0 });
   const PAGE = 200;
+  const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
+  const reqId = useRef(0);
   const query = useRef({ q: '', filter: 'all', cfilter: 'all', sfilter: 'all', smart: true, page: 0 });
   query.current = { q, filter, cfilter, sfilter, smart, page };
 
@@ -76,10 +79,17 @@ export default function Dashboard({ email, admin }: { email: string; admin: bool
   async function load() {
     const c = query.current;
     const p = new URLSearchParams({ q: c.q.trim(), filter: c.filter, country: c.cfilter, sector: c.sfilter, smart: c.smart ? '1' : '0', page: String(c.page) });
-    const r = await fetch('/api/companies?' + p);
-    if (!r.ok) return;
-    const j = await r.json();
-    setRows(j.rows); setTotal(j.total); setStats(j.stats); setSectors(j.sectors.map((x: any) => [x.sector, x.n]));
+    const id = ++reqId.current;
+    setLoading(true);
+    try {
+      const r = await fetch('/api/companies?' + p);
+      if (!r.ok || id !== reqId.current) return;
+      const j = await r.json();
+      if (id !== reqId.current) return;
+      setRows(j.rows); setTotal(j.total); setStats(j.stats); setSectors(j.sectors.map((x: any) => [x.sector, x.n]));
+    } finally {
+      if (id === reqId.current) { setLoading(false); setLoaded(true); }
+    }
   }
   useEffect(() => { setPage(0); }, [q, filter, cfilter, sfilter, smart]);
   useEffect(() => {
@@ -284,9 +294,10 @@ export default function Dashboard({ email, admin }: { email: string; admin: bool
             {total > PAGE && <><button className="btn ghost sm" disabled={page === 0} onClick={() => setPage(page - 1)}>Prev</button><button className="btn ghost sm" disabled={(page + 1) * PAGE >= total} onClick={() => setPage(page + 1)}>Next</button></>}
           </div>
         )}
+        <div className={'loadbar' + (loading ? ' on' : '')} />
         <table className="t">
           <thead><tr><th></th><th>COMPANY</th><th>CONTACT</th><th>COUNTRY</th><th>CALL STATUS</th><th style={{ width: 420 }}>ACTIONS</th></tr></thead>
-          <tbody>
+          <tbody style={{ opacity: loading && loaded ? 0.45 : 1, transition: 'opacity .15s' }}>
             {shown.map((c) => {
               const l = lang[c.id] || langFor(c.country);
               const ex = (c.decks || []).find((d) => d.lang === l);
@@ -348,7 +359,8 @@ export default function Dashboard({ email, admin }: { email: string; admin: bool
                 </Fragment>
               );
             })}
-            {!shown.length && <tr><td colSpan={6} style={{ color: 'var(--mute)', padding: 24 }}>{stats.total ? 'Nothing matches this filter.' : admin ? 'No companies yet. Add one above or upload a spreadsheet.' : 'No companies for your country yet. Ask your admin to check the country set for you.'}</td></tr>}
+            {!loaded && <tr><td colSpan={6}><div className="loadrow"><span className="spinner" />Loading companies...</div></td></tr>}
+            {loaded && !shown.length && <tr><td colSpan={6} style={{ color: 'var(--mute)', padding: 24 }}>{stats.total ? 'Nothing matches this filter.' : admin ? 'No companies yet. Add one above or upload a spreadsheet.' : 'No companies for your country yet. Ask your admin to check the country set for you.'}</td></tr>}
           </tbody>
         </table>
         {total > PAGE && (

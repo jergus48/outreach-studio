@@ -279,3 +279,10 @@ tr.logrow td{background:#16161a;padding:14px 16px 18px;border-bottom:1px solid v
 .faq button{width:100%;text-align:left;background:none;border:0;color:var(--fg);font:inherit;padding:12px 2px;cursor:pointer}
 .faq button.on{color:var(--g)}
 .faq p{padding:0 2px 14px;color:#cfcfd4;line-height:1.55}
+
+.spinner{display:inline-block;width:18px;height:18px;border:2px solid var(--line);border-top-color:var(--g);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-4px;margin-right:10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loadrow{padding:36px 0;text-align:center;color:var(--mute);font-size:14px}
+.loadbar{height:2px;margin:6px 0;background:transparent;overflow:hidden;position:relative}
+.loadbar.on::after{content:'';position:absolute;inset:0;width:35%;background:var(--g);animation:slide 1s ease-in-out infinite}
+@keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(300%)}}
