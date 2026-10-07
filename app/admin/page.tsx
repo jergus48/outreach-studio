@@ -14,7 +14,7 @@ type Stats = {
   followupsDue: number;
   companies: { n: number; untouched: number };
 };
-type Co = { id: number; name: string; website?: string; phone?: string; country?: string; owner_id: number; owner_email?: string; last_outcome?: string; last_at?: string; last_by?: string; call_count: number };
+type Co = { id: number; name: string; website?: string; phone?: string; country?: string; sector?: string | null; last_outcome?: string; last_at?: string; last_by?: string; call_count: number };
 type Feed = { id: number; outcome: string; note?: string; followup_at?: string; created_at: string; user_email?: string; name: string; website?: string; country?: string; phone?: string };
 
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) + '%' : '-');
@@ -22,12 +22,14 @@ const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) + '%' : '-'
 export default function Admin() {
   const [tab, setTab] = useState<'calls' | 'companies' | 'users'>('calls');
   const [cos, setCos] = useState<Co[]>([]);
+  const [cTotal, setCTotal] = useState(0);
+  const [cSector, setCSector] = useState('');
+  const [sectors, setSectors] = useState<{ sector: string; n: number }[]>([]);
+  const [cPage, setCPage] = useState(0);
   const [sel, setSel] = useState<Set<number>>(new Set());
   const [cq, setCq] = useState('');
-  const [cOwner, setCOwner] = useState('');
   const [cCountry, setCCountry] = useState('');
   const [cState, setCState] = useState('');
-  const [target, setTarget] = useState('');
   const [cmsg, setCmsg] = useState('');
   const [days, setDays] = useState(7);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -50,24 +52,28 @@ export default function Admin() {
   }, [days, fu, fo, fc]);
   useEffect(() => { loadCalls(); }, [loadCalls]);
 
+  const PAGE = 200;
   async function loadCos() {
-    const r = await fetch('/api/admin/companies');
-    if (r.ok) setCos(await r.json());
+    const p = new URLSearchParams({ q: cq.trim(), country: cCountry, sector: cSector, state: cState, page: String(cPage) });
+    const r = await fetch('/api/admin/companies?' + p);
+    if (r.ok) { const j = await r.json(); setCos(j.rows); setCTotal(j.total); setSectors(j.sectors || []); }
   }
-  useEffect(() => { if (tab === 'companies') loadCos(); }, [tab]);
+  useEffect(() => { setCPage(0); }, [cq, cCountry, cSector, cState]);
+  useEffect(() => {
+    if (tab !== 'companies') return;
+    const t = setTimeout(loadCos, cq ? 300 : 0);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, cq, cCountry, cSector, cState, cPage]);
 
-  const shownCos = cos.filter((c) => {
-    const q = cq.trim().toLowerCase();
-    return (!q || [c.name, c.website, c.phone].some((v) => (v || '').toLowerCase().includes(q))) &&
-      (!cOwner || String(c.owner_id) === cOwner) && (!cCountry || c.country === cCountry) &&
-      (!cState || (cState === 'never' ? !c.call_count : cState === 'called' ? c.call_count > 0 : c.last_outcome === cState));
-  });
+  const shownCos = cos;
   const allSel = shownCos.length > 0 && shownCos.every((c) => sel.has(c.id));
-  async function moveSelected() {
-    if (!sel.size || !target) return;
-    const r = await fetch('/api/admin/companies', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ids: [...sel], ownerId: Number(target) }) });
+  const callersFor = (c: Co) => users.filter((u) => u.role !== 'admin' && u.country && u.country === c.country);
+  async function deleteAllMatching() {
+    if (!cTotal || !confirm(`Delete ALL ${cTotal} companies matching this filter, with their decks and call log?`)) return;
+    const r = await fetch('/api/admin/companies', { method: 'DELETE', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ all: true, q: cq.trim(), country: cCountry, sector: cSector, state: cState }) });
     const j = await r.json();
-    setCmsg(r.ok ? `Moved ${j.moved} companies` : j.error);
+    setCmsg(r.ok ? `Deleted ${j.deleted} companies` : j.error);
     setSel(new Set());
     loadCos();
   }
@@ -225,13 +231,13 @@ export default function Admin() {
         <div className="card">
           <div className="toolbar">
             <input style={{ flex: 1, minWidth: 180 }} placeholder="Search name, website, phone..." value={cq} onChange={(e) => setCq(e.target.value)} />
-            <select value={cOwner} onChange={(e) => setCOwner(e.target.value)}>
-              <option value="">All callers</option>
-              {users.map((u) => <option key={u.id} value={u.id}>{u.email}</option>)}
-            </select>
             <select value={cCountry} onChange={(e) => setCCountry(e.target.value)}>
               <option value="">All countries</option>
               {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
+            </select>
+            <select value={cSector} onChange={(e) => setCSector(e.target.value)} style={{ maxWidth: 260 }}>
+              <option value="">All sectors</option>
+              {sectors.map((x) => <option key={x.sector} value={x.sector}>{x.sector} ({x.n})</option>)}
             </select>
             <select value={cState} onChange={(e) => setCState(e.target.value)}>
               <option value="">Any status</option>
@@ -242,28 +248,26 @@ export default function Admin() {
           </div>
           <div className="toolbar" style={{ background: sel.size ? '#16200a' : undefined, padding: sel.size ? 10 : 0, borderRadius: 8 }}>
             <b style={{ fontSize: 13 }}>{sel.size} selected</b>
-            <select value={target} onChange={(e) => setTarget(e.target.value)}>
-              <option value="">Move selected to...</option>
-              {users.map((u) => <option key={u.id} value={u.id}>{u.email}</option>)}
-            </select>
-            <button className="btn sm" disabled={!sel.size || !target} onClick={moveSelected}>Move</button>
             <button className="btn ghost sm" disabled={!sel.size} onClick={deleteSelected}>Delete selected</button>
+            <button className="btn ghost sm" disabled={!cTotal} onClick={deleteAllMatching}>Delete all {cTotal} matching</button>
             {cmsg && <span style={{ color: 'var(--g)', fontSize: 13 }}>{cmsg}</span>}
-            <span style={{ marginLeft: 'auto', color: 'var(--mute)', fontSize: 12 }}>{shownCos.length} of {cos.length} companies</span>
+            <span style={{ marginLeft: 'auto', color: 'var(--mute)', fontSize: 12 }}>{cTotal} companies{cTotal > PAGE ? ` · rows ${cPage * PAGE + 1}-${Math.min(cTotal, (cPage + 1) * PAGE)}` : ''}</span>
+            {cTotal > PAGE && <><button className="btn ghost sm" disabled={cPage === 0} onClick={() => setCPage(cPage - 1)}>Prev</button><button className="btn ghost sm" disabled={(cPage + 1) * PAGE >= cTotal} onClick={() => setCPage(cPage + 1)}>Next</button></>}
           </div>
           <table className="t">
-            <thead><tr><th style={{ width: 30 }}><input type="checkbox" checked={allSel} onChange={() => setSel(allSel ? new Set() : new Set(shownCos.map((c) => c.id)))} /></th><th>COMPANY</th><th>COUNTRY</th><th>ASSIGNED TO</th><th>LAST CALL</th></tr></thead>
+            <thead><tr><th style={{ width: 30 }}><input type="checkbox" checked={allSel} onChange={() => setSel(allSel ? new Set() : new Set(shownCos.map((c) => c.id)))} /></th><th>COMPANY</th><th>SECTOR</th><th>COUNTRY</th><th>CALLERS (BY COUNTRY)</th><th>LAST CALL</th></tr></thead>
             <tbody>
               {shownCos.map((c) => (
                 <tr key={c.id}>
                   <td><input type="checkbox" checked={sel.has(c.id)} onChange={() => { const n = new Set(sel); n.has(c.id) ? n.delete(c.id) : n.add(c.id); setSel(n); }} /></td>
                   <td><b>{c.name}</b><div style={{ color: 'var(--mute)', fontSize: 12 }}>{c.website}{c.phone ? ` · ${c.phone}` : ''}</div></td>
+                  <td style={{ fontSize: 12.5, maxWidth: 260 }}>{c.sector || <span style={{ color: 'var(--mute)' }}>-</span>}</td>
                   <td>{(c.country || '').toUpperCase()}</td>
-                  <td>{c.owner_email || '-'}</td>
+                  <td>{callersFor(c).map((u) => u.email).join(', ') || <span style={{ color: 'var(--mute)' }}>no caller for this country</span>}</td>
                   <td>{c.call_count ? <><span className={`pill oc-${outcomeTone(c.last_outcome)}`}>{outcomeLabel(c.last_outcome)}</span><div style={{ fontSize: 11.5, color: 'var(--mute)', marginTop: 3 }}>{c.last_by} · {ago(c.last_at)} · {c.call_count} call{c.call_count > 1 ? 's' : ''}</div></> : <span className="pill">never called</span>}</td>
                 </tr>
               ))}
-              {!shownCos.length && <tr><td colSpan={5} style={{ color: 'var(--mute)', padding: 24 }}>No companies match.</td></tr>}
+              {!shownCos.length && <tr><td colSpan={6} style={{ color: 'var(--mute)', padding: 24 }}>No companies match.</td></tr>}
             </tbody>
           </table>
         </div>

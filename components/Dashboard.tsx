@@ -121,7 +121,7 @@ export default function Dashboard({ email, admin }: { email: string; admin: bool
         setProg({ done: i, total: rows.length, label: 'Importing' });
         const r = await fetch('/api/companies/import', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ rows: rows.slice(i, i + BATCH), onlyPhones }) });
         const j = await r.json().catch(() => ({}));
-        if (!r.ok) { setMsg(`${j.error || 'Import failed'} (stopped after ${tot.added} companies)`); load(); return; }
+        if (!r.ok) { setMsg(`${j.error || `Import failed (HTTP ${r.status})`} (stopped after ${tot.added} companies)`); load(); return; }
         tot.added += j.added; tot.noPhone += j.noPhone; tot.duplicate += j.duplicate;
         for (const [k, v] of Object.entries(j.byCountry || {})) byCountry[k] = (byCountry[k] || 0) + (v as number);
       }
