@@ -6,7 +6,7 @@ import { ago, outcomeLabel, outcomeTone } from '@/lib/outcomes';
 
 type Deck = { id: number; lang: string; share_token: string; created_at: string; has_slides?: boolean; has_presenter?: boolean; slides_early?: boolean };
 type Company = {
-  id: number; name: string; email?: string; phone?: string; website?: string; logo_url?: string; status: string; country?: string; decks: Deck[] | null; agreed?: boolean;
+  id: number; name: string; email?: string; phone?: string; website?: string; logo_url?: string; status: string; country?: string; sector?: string | null; decks: Deck[] | null; agreed?: boolean;
   last_outcome?: string; last_note?: string; last_at?: string; last_followup?: string; last_by?: string; last_by_other?: boolean; call_count: number;
 };
 
@@ -49,6 +49,10 @@ export default function Dashboard({ email, admin }: { email: string; admin: bool
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('all');
   const [cfilter, setCfilter] = useState('all');
+  const [sfilter, setSfilter] = useState('all');
+  const [pending, setPending] = useState<File | null>(null);
+  const [prog, setProg] = useState<{ done: number; total: number; label: string } | null>(null);
+  const [onlyPhones, setOnlyPhones] = useState(true);
   const [smart, setSmart] = useState(true);
   const [users, setUsers] = useState<{ id: number; email: string; role: string }[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -74,10 +78,17 @@ export default function Dashboard({ email, admin }: { email: string; admin: bool
   const shown = useMemo(() => {
     const f = FILTERS.find((x) => x.v === filter)!;
     const s = q.trim().toLowerCase();
-    let list = rows.filter((c) => f.test(c) && (cfilter === 'all' || c.country === cfilter) && (!s || [c.name, c.website, c.email, c.phone].some((v) => (v || '').toLowerCase().includes(s))));
+    let list = rows.filter((c) => f.test(c) && (cfilter === 'all' || c.country === cfilter) && (sfilter === 'all' || c.sector === sfilter) && (!s || [c.name, c.website, c.email, c.phone, c.sector].some((v) => (v || '').toLowerCase().includes(s))));
     if (smart) list = [...list].sort((a, b) => priority(a) - priority(b));
     return list;
-  }, [rows, q, filter, cfilter, smart]);
+  }, [rows, q, filter, cfilter, sfilter, smart]);
+
+  // Sectors present in the data, most common first, so the filter only offers what exists.
+  const sectors = useMemo(() => {
+    const n = new Map<string, number>();
+    for (const c of rows) if (c.sector) n.set(c.sector, (n.get(c.sector) || 0) + 1);
+    return [...n.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }, [rows]);
 
   const stats = useMemo(() => ({
     total: rows.length,
@@ -88,6 +99,7 @@ export default function Dashboard({ email, admin }: { email: string; admin: bool
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
+    if (pending && !form.name.trim()) { upload(pending); return; }
     if (!form.name.trim()) return;
     await fetch('/api/companies', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...form}) });
     setForm({ name: '', email: '', phone: '', website: '', country: '' });
@@ -95,13 +107,34 @@ export default function Dashboard({ email, admin }: { email: string; admin: bool
   }
 
   async function upload(f: File) {
-    const fd = new FormData();
-    fd.append('file', f);
-    const r = await fetch('/api/companies/import', { method: 'POST', body: fd });
-    const j = await r.json();
-    setMsg(r.ok ? `Imported ${j.added} companies (${Object.entries(j.byCountry || {}).map(([k, v]) => `${String(k).toUpperCase()} ${v}`).join(', ')})` : j.error || 'Import failed');
-    if (fileRef.current) fileRef.current.value = '';
-    load();
+    const BATCH = 1000;
+    setMsg('');
+    setProg({ done: 0, total: 0, label: 'Reading file...' });
+    try {
+      const XLSX = await import('xlsx');
+      const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+      const rows: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+      if (!rows.length) { setMsg('The file has no rows'); return; }
+      const tot = { added: 0, noPhone: 0, duplicate: 0 };
+      const byCountry: Record<string, number> = {};
+      for (let i = 0; i < rows.length; i += BATCH) {
+        setProg({ done: i, total: rows.length, label: 'Importing' });
+        const r = await fetch('/api/companies/import', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ rows: rows.slice(i, i + BATCH), onlyPhones }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) { setMsg(`${j.error || 'Import failed'} (stopped after ${tot.added} companies)`); load(); return; }
+        tot.added += j.added; tot.noPhone += j.noPhone; tot.duplicate += j.duplicate;
+        for (const [k, v] of Object.entries(j.byCountry || {})) byCountry[k] = (byCountry[k] || 0) + (v as number);
+      }
+      setProg({ done: rows.length, total: rows.length, label: 'Done' });
+      setMsg(`Imported ${tot.added} companies (${Object.entries(byCountry).map(([k, v]) => `${k.toUpperCase()} ${v}`).join(', ')})${tot.noPhone ? `, skipped ${tot.noPhone} without a phone` : ''}${tot.duplicate ? `, skipped ${tot.duplicate} already in the studio` : ''}`);
+    } catch (err: any) {
+      setMsg(`Import failed: ${err?.message || err}`);
+    } finally {
+      setPending(null);
+      if (fileRef.current) fileRef.current.value = '';
+      setTimeout(() => setProg(null), 1500);
+      load();
+    }
   }
 
   async function setCountry(c: Company, country: string) {
@@ -196,13 +229,22 @@ export default function Dashboard({ email, admin }: { email: string; admin: bool
             <option value="">Country: auto-detect</option>
             {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
           </select>
-          <button className="btn">Add</button>
+          <button className="btn" disabled={!!prog && prog.label !== 'Done'}>{pending && !form.name.trim() ? 'Import file' : 'Add'}</button>
           <span style={{ color: 'var(--mute)' }}>or upload Excel:</span>
-          <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+          <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={(e) => setPending(e.target.files?.[0] || null)} />
+          <label className="mini"><input type="checkbox" checked={onlyPhones} onChange={(e) => setOnlyPhones(e.target.checked)} /> Only import companies with a phone number</label>
         </form>
         <div style={{ color: 'var(--mute)', fontSize: 12, marginTop: 8 }}>
-          Excel/CSV columns: name, email, phone, website, country (optional). Callers automatically see the companies of the country set for them in Admin, Users. With no country the app reads it from the website domain (.lt .de .at .ch) or the phone prefix, otherwise English. The deck language follows the country: LT = Lithuanian, DE / AT / CH = German, other = English.
+          Excel/CSV columns: name, email, phone, website, sector, country (sector and country optional). Rows already in the studio (same phone) are skipped, so you can re-upload an updated list. Callers automatically see the companies of the country set for them in Admin, Users. With no country the app reads it from the website domain (.lt .de .at .ch) or the phone prefix, otherwise English. The deck language follows the country: LT = Lithuanian, DE / AT / CH = German, other = English.
         </div>
+        {prog && (
+          <div style={{ marginTop: 10 }}>
+            <div style={{ height: 8, background: 'var(--line, #333)', borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${prog.total ? Math.round((prog.done / prog.total) * 100) : 0}%`, background: 'var(--g)', transition: 'width .2s' }} />
+            </div>
+            <div style={{ color: 'var(--mute)', fontSize: 12, marginTop: 4 }}>{prog.label}{prog.total ? ` ${prog.done.toLocaleString()} / ${prog.total.toLocaleString()} rows` : ''}</div>
+          </div>
+        )}
         {msg && <div className="err">{msg}</div>}
       </div>
       )}
@@ -233,6 +275,10 @@ export default function Dashboard({ email, admin }: { email: string; admin: bool
             <option value="all">All countries</option>
             {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
           </select>
+          <select value={sfilter} onChange={(e) => setSfilter(e.target.value)}>
+            <option value="all">All sectors</option>
+            {sectors.map(([s, n]) => <option key={s} value={s}>{s} ({n})</option>)}
+          </select>
           <label className="mini"><input type="checkbox" checked={smart} onChange={(e) => setSmart(e.target.checked)} /> Smart order (follow-ups, then new)</label>
         </div>
         <table className="t">
@@ -246,7 +292,7 @@ export default function Dashboard({ email, admin }: { email: string; admin: bool
                 <Fragment key={c.id}>
                   <tr className={open === c.id ? 'openrow' : ''}>
                     <td>{c.logo_url ? <img className="lg" src={c.logo_url} alt="" /> : null}</td>
-                    <td><b>{c.name}</b><div style={{ color: 'var(--mute)', fontSize: 12 }}>{c.website}</div></td>
+                    <td><b>{c.name}</b><div style={{ color: 'var(--mute)', fontSize: 12 }}>{c.website}</div>{c.sector && <div style={{ color: 'var(--mute)', fontSize: 11.5 }}>{c.sector}</div>}</td>
                     <td style={{ fontSize: 12.5, color: '#bdbdc2' }}>
                       {c.phone && <a className="tel" href={`tel:${c.phone.replace(/\s/g, '')}`}>{c.phone}</a>}
                       <br />{c.email}

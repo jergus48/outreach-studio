@@ -72,7 +72,7 @@ const lt: Fixed = {
 const en: Fixed = {
   ui: { problem: 'Before', solution: 'What we built', wouldBuild: 'WHAT WE WOULD BUILD', today: 'TODAY' },
   kinds: { console: 'OPERATIONS CONSOLE', documents: 'DOCUMENT AUTOMATION', portal: 'SELF-SERVICE PORTAL', agent: 'AI AGENT', tool: 'INTERNAL TOOL' },
-  cover: { kicker: 'CUSTOM SOFTWARE STUDIO', right: 'PROPOSAL OVERVIEW · 2026', foot: 'Working prototypes in weeks, not months' },
+  cover: { kicker: 'CUSTOM SOFTWARE STUDIO', right: 'PROPOSAL OVERVIEW · 2026', foot: 'Working prototypes in days, not months' },
   what: { label: '01 — WHAT WE DO', before: 'We build ', hl: 'custom software', after: ' for companies that have outgrown spreadsheets and off-the-shelf tools.', chips: ['Dashboards and consoles', 'Client and partner portals', 'Data and document automation'] },
   why: { label: '02 — WHY COMPANIES COME TO US', title: 'Good businesses, held back by the wrong tools.', items: ['Off-the-shelf software forces your processes to fit its product, not the other way round.', 'The most important work happens in ⟦spreadsheets⟧ and email: fragile, manual and impossible to scale.', 'Generic tools never fit ⟦your exact cases⟧, so people quietly fill the gaps by hand, at the team\'s expense.'] },
   build: { label: '03 — WHAT WE BUILD', title: 'Four things, done exceptionally well.', items: [

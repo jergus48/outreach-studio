@@ -79,6 +79,10 @@ alter table meetings add column if not exists debrief_at timestamptz;
 
 alter table users add column if not exists country text;
 
+-- Industry / niche of the company, filled from the Excel import and used for filtering.
+alter table companies add column if not exists sector text;
+create index if not exists companies_sector_idx on companies(sector);
+
 alter table decks add column if not exists presenter jsonb;
 alter table decks add column if not exists slides_at timestamptz;
 alter table decks add column if not exists slides_by int references users(id) on delete set null;

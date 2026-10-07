@@ -42,8 +42,8 @@ export async function POST(req: Request) {
     if (!u[0]) return NextResponse.json({ error: 'Unknown user' }, { status: 400 });
     owner = u[0].id;
   }
-  const rows = await q('insert into companies(owner_id,name,email,phone,website,country) values($1,$2,$3,$4,$5,$6) returning *', [
-    owner, b.name.trim(), b.email || null, b.phone || null, b.website || null, country,
+  const rows = await q('insert into companies(owner_id,name,email,phone,website,sector,country) values($1,$2,$3,$4,$5,$6,$7) returning *', [
+    owner, b.name.trim(), b.email || null, b.phone || null, b.website || null, b.sector?.trim() || null, country,
   ]);
   return NextResponse.json(rows[0]);
 }

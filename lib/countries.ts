@@ -1,28 +1,33 @@
 import type { Lang } from './fixed';
 
-export type Country = 'lt' | 'de' | 'at' | 'ch' | 'other';
+export type Country = 'lt' | 'de' | 'at' | 'ch' | 'ie' | 'gb' | 'other';
 export const COUNTRIES: { code: Country; label: string; lang: Lang }[] = [
   { code: 'lt', label: 'Lithuania', lang: 'lt' },
   { code: 'de', label: 'Germany', lang: 'de' },
   { code: 'at', label: 'Austria', lang: 'de' },
   { code: 'ch', label: 'Switzerland', lang: 'de' },
+  { code: 'ie', label: 'Ireland', lang: 'en' },
+  { code: 'gb', label: 'England (UK)', lang: 'en' },
   { code: 'other', label: 'Other (English)', lang: 'en' },
 ];
 
 export const langFor = (c?: string | null): Lang => COUNTRIES.find((x) => x.code === c)?.lang || 'en';
 
-const PHONE: [string, Country][] = [['+370', 'lt'], ['00370', 'lt'], ['+49', 'de'], ['0049', 'de'], ['+43', 'at'], ['0043', 'at'], ['+41', 'ch'], ['0041', 'ch']];
-const TLD: Record<string, Country> = { lt: 'lt', de: 'de', at: 'at', ch: 'ch' };
+const PHONE: [string, Country][] = [['+370', 'lt'], ['00370', 'lt'], ['+49', 'de'], ['0049', 'de'], ['+43', 'at'], ['0043', 'at'], ['+41', 'ch'], ['0041', 'ch'], ['+353', 'ie'], ['00353', 'ie'], ['+44', 'gb'], ['0044', 'gb']];
+const TLD: Record<string, Country> = { lt: 'lt', de: 'de', at: 'at', ch: 'ch', ie: 'ie', uk: 'gb' };
 
 /** Free-text (Excel cell or form value) to a country code, or null if empty/unclear. */
 export function parseCountry(raw?: string | null): Country | null {
   const s = (raw || '').toString().trim().toLowerCase();
   if (!s) return null;
-  if (['lt', 'de', 'at', 'ch'].includes(s)) return s as Country;
+  if (['lt', 'de', 'at', 'ch', 'ie', 'gb'].includes(s)) return s as Country;
+  if (s === 'uk') return 'gb';
   if (/(lit|lietuv|litva|litau)/.test(s)) return 'lt';
   if (/(austria|österreich|osterreich|oesterreich|rakousk|rakúsk)/.test(s)) return 'at';
   if (/(switz|schweiz|suisse|svizzera|švýcar|švajcar|svajcar)/.test(s)) return 'ch';
   if (/(german|deutsch|německ|nemeck|vokiet)/.test(s)) return 'de';
+  if (/(ireland|éire|eire|irsk|airij)/.test(s)) return 'ie';
+  if (/(england|united kingdom|britain|british|anglij|anglick)/.test(s)) return 'gb';
   return 'other';
 }
 
