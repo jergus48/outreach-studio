@@ -24,6 +24,7 @@ export async function GET(req: Request) {
          (select count(*)::int from decks d where d.slides_by=u.id and d.slides_at > ${since} and d.slides_early) as slides_early,
          max(k.created_at) last_call
        from users u left join calls k on k.user_id=u.id and k.created_at > ${since}
+       where coalesce(to_jsonb(u)->>'status','approved')='approved'
        group by u.id order by calls desc, u.email`),
     q(`select to_char(d::date,'YYYY-MM-DD') as day, coalesce(x.n,0)::int as n, coalesce(x.good,0)::int as good
        from generate_series((now() - interval '${days - 1} days')::date, now()::date, '1 day') d
