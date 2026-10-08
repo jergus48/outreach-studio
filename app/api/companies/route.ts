@@ -82,9 +82,15 @@ export async function GET(req: Request) {
      ${from(vis)}`,
     [s.uid, s.role === 'admin']
   ))[0];
+  // Sector list follows the country and status filters (not the sector or text filters)
+  const secParams: any[] = [s.uid, s.role === 'admin'];
+  const secConds = [vis, `c.sector is not null`, `c.sector<>''`];
+  if (country && country !== 'all') { secParams.push(country); secConds.push(`c.country=$${secParams.length}`); }
   const sectors = await q(
-    `select c.sector, count(*)::int n from companies c where ${vis} and c.sector is not null and c.sector<>'' group by c.sector order by n desc, c.sector`,
-    [s.uid, s.role === 'admin']
+    status
+      ? `with ${KEYS} select v.sector, count(*)::int n ${from(secConds.join(' and '))} where ${status} group by v.sector order by n desc, v.sector`
+      : `select c.sector, count(*)::int n from companies c where ${secConds.join(' and ')} group by c.sector order by n desc, c.sector`,
+    secParams
   );
   return NextResponse.json({ rows, total, page, pageSize: PAGE, stats: st, sectors });
 }

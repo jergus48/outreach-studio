@@ -87,6 +87,7 @@ export default function Dashboard({ email, admin }: { email: string; admin: bool
       const j = await r.json();
       if (id !== reqId.current) return;
       setRows(j.rows); setTotal(j.total); setStats(j.stats); setSectors(j.sectors.map((x: any) => [x.sector, x.n]));
+      if (c.sfilter !== 'all' && !j.sectors.some((x: any) => x.sector === c.sfilter)) setSfilter('all');
     } finally {
       if (id === reqId.current) { setLoading(false); setLoaded(true); }
     }
