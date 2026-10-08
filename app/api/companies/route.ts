@@ -33,7 +33,8 @@ export async function GET(req: Request) {
   const u = new URL(req.url).searchParams;
   const page = Math.max(0, Number(u.get('page')) || 0);
   const params: any[] = [s.uid, s.role === 'admin'];
-  const vis = `($2::boolean or c.country=(select u0.country from users u0 where u0.id=$1))`;
+  // Companies without a website can't be researched, so they are left out of the list, stats and sectors.
+  const vis = `(($2::boolean or c.country=(select u0.country from users u0 where u0.id=$1)) and btrim(coalesce(c.website,''))<>'')`;
   const conds: string[] = [];
   const text = (u.get('q') || '').trim().toLowerCase();
   if (text) { params.push(`%${text}%`); const n = params.length; conds.push(`(${['c.name', 'c.website', 'c.email', 'c.phone', 'c.sector'].map((f) => `lower(coalesce(${f},'')) like $${n}`).join(' or ')})`); }
