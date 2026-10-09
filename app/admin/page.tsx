@@ -1,6 +1,6 @@
 'use client';
 import GoogleConnect from '@/components/GoogleConnect';
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { COUNTRIES } from '@/lib/countries';
 import { OUTCOMES, ago, outcomeLabel, outcomeTone } from '@/lib/outcomes';
 
@@ -17,10 +17,35 @@ type Stats = {
 type Co = { id: number; name: string; website?: string; phone?: string; country?: string; sector?: string | null; last_outcome?: string; last_at?: string; last_by?: string; call_count: number };
 type Feed = { id: number; outcome: string; note?: string; followup_at?: string; created_at: string; user_email?: string; name: string; website?: string; country?: string; phone?: string };
 
-const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) + '%' : '-');
+type Mt = { id: number; start_at: string; end_at: string; meet_url?: string; attendee_email?: string; transcript_state?: string; auto_transcribe?: string; transcript_at?: string; transcript_checked_at?: string; has_transcript: boolean; name: string; user_email?: string };
+const when = (s?: string) => (s ? new Date(s).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-');
+
+const pct =(a: number, b: number) => (b ? Math.round((a / b) * 100) + '%' : '-');
 
 export default function Admin() {
-  const [tab, setTab] = useState<'calls' | 'companies' | 'users'>('calls');
+  const [tab, setTab] = useState<'calls' | 'meetings' | 'companies' | 'users'>('calls');
+  const [mts, setMts] = useState<Mt[]>([]);
+  const [mOpen, setMOpen] = useState<number | null>(null);
+  const [mTx, setMTx] = useState<Record<number, string>>({});
+  const loadMeetings = useCallback(async () => {
+    const r = await fetch('/api/admin/meetings');
+    if (r.ok) setMts(await r.json());
+  }, []);
+  // Meetings tab: refresh every 2 minutes while open; each load also pulls transcripts that are due.
+  useEffect(() => {
+    if (tab !== 'meetings') return;
+    loadMeetings();
+    const t = setInterval(loadMeetings, 120000);
+    return () => clearInterval(t);
+  }, [tab, loadMeetings]);
+  async function openTx(id: number) {
+    if (mOpen === id) return setMOpen(null);
+    if (!mTx[id]) {
+      const j = await (await fetch(`/api/meetings/${id}/transcript`)).json().catch(() => ({} as any));
+      if (j.transcript) setMTx((t) => ({ ...t, [id]: j.transcript }));
+    }
+    setMOpen(id);
+  }
   const [cos, setCos] = useState<Co[]>([]);
   const [cTotal, setCTotal] = useState(0);
   const [cSector, setCSector] = useState('');
@@ -124,6 +149,7 @@ export default function Admin() {
       <div className="row" style={{ marginBottom: 16 }}>
         <div className="tabs">
           <button className={tab === 'calls' ? 'on' : ''} onClick={() => setTab('calls')}>Call dashboard</button>
+          <button className={tab === 'meetings' ? 'on' : ''} onClick={() => setTab('meetings')}>Meetings</button>
           <button className={tab === 'companies' ? 'on' : ''} onClick={() => setTab('companies')}>Companies</button>
           <button className={tab === 'users' ? 'on' : ''} onClick={() => setTab('users')}>Users</button>
         </div>
@@ -225,6 +251,37 @@ export default function Admin() {
             </table>
           </div>
         </>
+      )}
+
+      {tab === 'meetings' && (
+        <div className="card">
+          <div className="mini" style={{ color: 'var(--mute)', marginBottom: 10 }}>
+            Transcripts are pulled automatically 10 minutes after a meeting ends (retried every 10 minutes for 3 days). This list refreshes every 2 minutes.
+          </div>
+          <table className="t">
+            <thead><tr><th>MEETING</th><th>COMPANY</th><th>CALLER</th><th>AUTO TRANSCRIBE</th><th>TRANSCRIPT</th><th /></tr></thead>
+            <tbody>
+              {mts.map((m) => {
+                const over = new Date(m.end_at) < new Date();
+                const status = m.has_transcript ? `Received ${when(m.transcript_at)}` : !over ? 'After the meeting' : m.transcript_state?.startsWith('error') ? m.transcript_state : m.transcript_checked_at ? `${m.transcript_state === 'no_meeting_yet' ? 'Not started' : 'No transcript yet'} (checked ${when(m.transcript_checked_at)})` : 'Waiting for first check';
+                return (
+                  <Fragment key={m.id}>
+                    <tr>
+                      <td style={{ whiteSpace: 'nowrap' }}>{when(m.start_at)} - {new Date(m.end_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                      <td><b>{m.name}</b><div style={{ color: 'var(--mute)', fontSize: 12 }}>{m.attendee_email}</div></td>
+                      <td>{m.user_email || '-'}</td>
+                      <td style={{ fontSize: 12, color: m.auto_transcribe === 'on' ? 'var(--g)' : '#ff8f8f' }}>{m.auto_transcribe === 'on' ? 'On' : m.auto_transcribe ? 'Not on (start it in the call)' : 'Unknown'}</td>
+                      <td style={{ fontSize: 13, color: m.has_transcript ? 'var(--g)' : 'var(--mute)' }}>{status}</td>
+                      <td>{m.has_transcript && <button className="btn ghost sm" onClick={() => openTx(m.id)}>{mOpen === m.id ? 'Hide' : 'Show'}</button>}</td>
+                    </tr>
+                    {mOpen === m.id && mTx[m.id] && <tr><td colSpan={6}><pre style={{ whiteSpace: 'pre-wrap', maxHeight: 360, overflow: 'auto', margin: 0 }}>{mTx[m.id]}</pre></td></tr>}
+                  </Fragment>
+                );
+              })}
+              {!mts.length && <tr><td colSpan={6} style={{ color: 'var(--mute)', padding: 24 }}>No meetings yet.</td></tr>}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {tab === 'companies' && (

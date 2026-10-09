@@ -107,6 +107,8 @@ export default function CallLogger({ companyId, defaultEmail, onSaved }: { compa
         if (j.clash && confirm(`${j.error}\n\nThere is already a call scheduled at this time. Create the Meet anyway?`)) m = await send(true);
       }
       if (!m.ok) { setErr('Call saved, but the Meet was not created: ' + ((await m.json().catch(() => ({}))).error || 'error')); await load(); await loadMeetings(); onSaved?.(); return; }
+      const mj = await m.json().catch(() => ({} as any));
+      if (mj.autoTranscribe && mj.autoTranscribe !== 'on') { setErr('Meet created, but automatic transcription could not be switched on (' + mj.autoTranscribe + '). Start transcription manually in the meeting.'); await load(); await loadMeetings(); onSaved?.(); return; }
       await loadMeetings();
     }
     setOutcome('');

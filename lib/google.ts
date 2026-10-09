@@ -3,6 +3,7 @@ import { q } from '@/lib/db';
 export const SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/meetings.space.readonly',
+  'https://www.googleapis.com/auth/meetings.space.settings',
 ];
 
 const hasClient = () => !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
@@ -96,6 +97,16 @@ export async function createMeeting(o: { summary: string; description?: string; 
     meetCode: (j.conferenceData?.conferenceId as string) || null,
     htmlLink: (j.htmlLink as string) || null,
   };
+}
+
+// Turns on automatic transcription for the Meet space behind a meeting code, so nobody has to start it by hand.
+// Needs the meetings.space.settings scope (reconnect Google after it was added) and a Google account that offers Meet transcription.
+export async function enableAutoTranscription(meetCode: string) {
+  const sp = await gjson(`https://meet.googleapis.com/v2/spaces/${encodeURIComponent(meetCode)}`);
+  await gjson(`https://meet.googleapis.com/v2/${sp.name}?updateMask=config.artifactConfig.transcriptionConfig.autoTranscriptionGeneration`, {
+    method: 'PATCH',
+    body: JSON.stringify({ config: { artifactConfig: { transcriptionConfig: { autoTranscriptionGeneration: 'ON' } } } }),
+  });
 }
 
 // Cancels the calendar event (and so the Meet) and notifies attendees. An event that is already gone counts as cancelled.

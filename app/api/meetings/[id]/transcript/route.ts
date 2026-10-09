@@ -25,7 +25,7 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
   if (!m.meet_code) return NextResponse.json({ error: 'This meeting has no Meet code' }, { status: 400 });
   try {
     const r = await fetchTranscript(m.meet_code);
-    await q('update meetings set transcript=coalesce($2,transcript), transcript_state=$3 where id=$1', [id, r.text || null, r.state]);
+    await q('update meetings set transcript=coalesce($2,transcript), transcript_state=$3, transcript_checked_at=now(), transcript_at=case when $2::text is not null then now() else transcript_at end where id=$1', [id, r.text || null, r.state]);
     return NextResponse.json({ state: r.state, transcript: r.text || m.transcript || null });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 502 });

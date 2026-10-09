@@ -87,3 +87,7 @@ alter table decks add column if not exists presenter jsonb;
 alter table decks add column if not exists slides_at timestamptz;
 alter table decks add column if not exists slides_by int references users(id) on delete set null;
 alter table decks add column if not exists slides_early boolean;
+
+alter table meetings add column if not exists transcript_at timestamptz;
+alter table meetings add column if not exists transcript_checked_at timestamptz;
+alter table meetings add column if not exists auto_transcribe text;
