@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { q } from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { createMeeting, enableAutoTranscription, addCoHost } from '@/lib/google';
+import { createMeeting, enableAutoTranscription } from '@/lib/google';
 
 async function company(s: { uid: number; role: string }, id: string) {
   const r = await q('select * from companies where id=$1 and ($3::boolean or country=(select u0.country from users u0 where u0.id=$2))', [id, s.uid, s.role === 'admin']);
@@ -68,16 +68,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (m.meetCode) {
       try { await enableAutoTranscription(m.meetCode); auto = 'on'; } catch (e: any) { auto = ('failed: ' + e.message).slice(0, 200); }
     }
-    let cohost = 'none';
-    if (m.meetCode && caller) {
-      try { await addCoHost(m.meetCode, caller); cohost = 'ok'; } catch (e: any) { cohost = ('failed: ' + e.message).slice(0, 200); }
-    }
     const rows = await q(
       'insert into meetings(company_id,user_id,event_id,meet_url,meet_code,html_link,attendee_email,start_at,end_at,auto_transcribe) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) returning id',
       [id, s.uid, m.eventId, m.meetUrl, m.meetCode, m.htmlLink, email, start.toISOString(), end.toISOString(), auto]
     );
     if (!c.email) await q('update companies set email=$2 where id=$1', [id, email]);
-    return NextResponse.json({ ok: true, id: rows[0].id, meetUrl: m.meetUrl, autoTranscribe: auto, cohost });
+    return NextResponse.json({ ok: true, id: rows[0].id, meetUrl: m.meetUrl, autoTranscribe: auto });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 502 });
   }

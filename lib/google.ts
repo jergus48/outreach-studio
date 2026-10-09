@@ -4,7 +4,6 @@ export const SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/meetings.space.readonly',
   'https://www.googleapis.com/auth/meetings.space.settings',
-  'https://www.googleapis.com/auth/meetings.space.created',
 ];
 
 const hasClient = () => !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
@@ -107,16 +106,6 @@ export async function enableAutoTranscription(meetCode: string) {
   await gjson(`https://meet.googleapis.com/v2/${sp.name}?updateMask=config.artifactConfig.transcriptionConfig.autoTranscriptionGeneration`, {
     method: 'PATCH',
     body: JSON.stringify({ config: { artifactConfig: { transcriptionConfig: { autoTranscriptionGeneration: 'ON' } } } }),
-  });
-}
-
-// Co-hosts can start transcription, which is what makes auto-transcription actually run for the caller.
-// Needs the meetings.space.created scope (reconnect Google after it was added).
-export async function addCoHost(meetCode: string, email: string) {
-  const sp = await gjson(`https://meet.googleapis.com/v2/spaces/${encodeURIComponent(meetCode)}`);
-  await gjson(`https://meet.googleapis.com/v2beta/${sp.name}/members`, {
-    method: 'POST',
-    body: JSON.stringify({ email, role: 'COHOST' }),
   });
 }
 
