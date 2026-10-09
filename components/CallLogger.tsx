@@ -109,6 +109,7 @@ export default function CallLogger({ companyId, defaultEmail, onSaved }: { compa
       if (!m.ok) { setErr('Call saved, but the Meet was not created: ' + ((await m.json().catch(() => ({}))).error || 'error')); await load(); await loadMeetings(); onSaved?.(); return; }
       const mj = await m.json().catch(() => ({} as any));
       if (mj.autoTranscribe && mj.autoTranscribe !== 'on') { setErr('Meet created, but automatic transcription could not be switched on (' + mj.autoTranscribe + '). Start transcription manually in the meeting.'); await load(); await loadMeetings(); onSaved?.(); return; }
+      if (mj.cohost && mj.cohost.startsWith('failed')) { setErr('Meet created, but the caller could not be made co-host (' + mj.cohost + '). Transcription may not start on its own, so join with the organizer account or start it manually.'); await load(); await loadMeetings(); onSaved?.(); return; }
       await loadMeetings();
     }
     setOutcome('');
