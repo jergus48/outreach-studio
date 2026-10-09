@@ -96,17 +96,30 @@ export default function CallLogger({ companyId, defaultEmail, onSaved }: { compa
     setBusy(false);
     if (!r.ok) return setErr((await r.json().catch(() => ({}))).error || 'Could not save');
     if (outcome === 'meeting_booked' && gOk && mk) {
-      const m = await fetch(`/api/companies/${companyId}/meetings`, {
+      const send = (allowOverlap: boolean) => fetch(`/api/companies/${companyId}/meetings`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email: mEmail, startsAt: mWhen ? new Date(mWhen).toISOString() : '', minutes: mMin, note, callerEmail: who === 'me' ? me : who === 'other' ? other : '', timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
+        body: JSON.stringify({ email: mEmail, startsAt: mWhen ? new Date(mWhen).toISOString() : '', minutes: mMin, note, allowOverlap, callerEmail: who === 'me' ? me : who === 'other' ? other : '', timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
       });
+      let m = await send(false);
+      if (m.status === 409) {
+        const j = await m.clone().json().catch(() => ({} as any));
+        if (j.clash && confirm(`${j.error}\n\nThere is already a call scheduled at this time. Create the Meet anyway?`)) m = await send(true);
+      }
       if (!m.ok) { setErr('Call saved, but the Meet was not created: ' + ((await m.json().catch(() => ({}))).error || 'error')); await load(); await loadMeetings(); onSaved?.(); return; }
       await loadMeetings();
     }
     setOutcome('');
     setNote('');
     await load();
+    onSaved?.();
+  }
+
+  async function cancelMeet(id: number) {
+    if (!confirm('Cancel this meeting? The Google Calendar event is deleted and the client is notified.')) return;
+    const r = await fetch(`/api/meetings/${id}`, { method: 'DELETE' });
+    if (!r.ok) return setErr((await r.json().catch(() => ({}))).error || 'Could not cancel');
+    await loadMeetings();
     onSaved?.();
   }
 
@@ -155,7 +168,7 @@ export default function CallLogger({ companyId, defaultEmail, onSaved }: { compa
                       {busyDay.length > 0 && <span className="mini">Already booked: {busyDay.map((x) => `${hhmm(new Date(x.start_at))}-${hhmm(new Date(x.end_at))} ${x.name}`).join(', ')}</span>}
                       <span className="mini" style={{ width: '100%' }}>{freeSlots.length ? `Free start times for ${mMin} min:` : 'No free slot that day for this length, pick another day.'}</span>
                       {freeSlots.map((t) => <button type="button" key={t} className={mTime === t ? 'on' : ''} onClick={() => setMTime(t)}>{t}</button>)}
-                      {clashNow && <span className="err" style={{ width: '100%' }}>This time overlaps another call of yours.</span>}
+                      {clashNow && <span className="err" style={{ width: '100%' }}>This time overlaps another call of yours. You can still book it, you will be asked to confirm.</span>}
                     </div>
                   )}
                 </>
@@ -176,6 +189,7 @@ export default function CallLogger({ companyId, defaultEmail, onSaved }: { compa
               <span className="who">{m.attendee_email}</span>
               {m.meet_url && <a href={m.meet_url} target="_blank" rel="noreferrer">Open Meet</a>}
               <button className="btn ghost sm" disabled={txBusy === m.id} onClick={() => pullTranscript(m.id)}>{txBusy === m.id ? 'Fetching...' : m.has_transcript ? 'Refresh transcript' : 'Get transcript'}</button>
+              <button className="btn ghost sm" onClick={() => cancelMeet(m.id)}>Cancel meeting</button>
               {m.has_transcript && <button className="btn ghost sm" onClick={() => showTranscript(m.id)}>{open === m.id ? 'Hide' : 'Show'} transcript</button>}
               {open === m.id && tx[m.id] && <pre style={{ width: '100%', whiteSpace: 'pre-wrap', maxHeight: 320, overflow: 'auto' }}>{tx[m.id]}</pre>}
             </div>

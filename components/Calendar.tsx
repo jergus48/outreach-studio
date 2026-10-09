@@ -58,6 +58,14 @@ export default function Calendar({ email, admin }: { email: string; admin: boole
     setSaved('Saved');
   }
 
+  async function cancelMeeting() {
+    if (!sel || !confirm(`Cancel the meeting with ${sel.name}? The Google Calendar event is deleted and the client is notified.`)) return;
+    const r = await fetch(`/api/meetings/${sel.id}`, { method: 'DELETE' });
+    if (!r.ok) return setSaved((await r.json().catch(() => ({}))).error || 'Could not cancel');
+    setRows((rs) => rs.filter((m) => m.id !== sel.id));
+    setSel(null);
+  }
+
   const days = useMemo(() => DAYS.map((_, i) => addDays(start, i)), [start]);
   const label = `${days[0].toLocaleDateString([], { day: 'numeric', month: 'short' })} - ${days[6].toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}`;
   const hours = Array.from({ length: H1 - H0 }, (_, i) => H0 + i);
@@ -144,6 +152,7 @@ export default function Calendar({ email, admin }: { email: string; admin: boole
             {!sel.share_token && sel.deck_id && <a className="btn sm" href={`/deck/${sel.deck_id}`}>Generate slides for this meeting</a>}
             {sel.deck_id && <a className="btn ghost sm" href={`/deck/${sel.deck_id}`}>Deck, script and call log</a>}
             {sel.html_link && <a className="btn ghost sm" href={sel.html_link} target="_blank" rel="noreferrer">Google Calendar event</a>}
+            <button className="btn ghost sm" style={{ color: '#ff8f8f' }} onClick={cancelMeeting}>Cancel meeting</button>
           </div>
 
           <h3 style={{ marginTop: 22 }}>AFTER THE CALL</h3>

@@ -98,6 +98,18 @@ export async function createMeeting(o: { summary: string; description?: string; 
   };
 }
 
+// Cancels the calendar event (and so the Meet) and notifies attendees. An event that is already gone counts as cancelled.
+export async function cancelMeeting(eventId: string) {
+  const t = await accessToken();
+  const r = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}?sendUpdates=all`, {
+    method: 'DELETE',
+    headers: { authorization: `Bearer ${t}` },
+  });
+  if (r.ok || r.status === 404 || r.status === 410) return;
+  const j: any = await r.json().catch(() => ({}));
+  throw new Error(`${j.error?.message || 'Google API error'} (${r.status})`);
+}
+
 // Transcript via the Meet REST API (Drive export is only attempted if the account granted Drive access).
 export async function fetchTranscript(meetCode: string): Promise<{ state: string; text?: string }> {
   const recs = await gjson(`https://meet.googleapis.com/v2/conferenceRecords?filter=${encodeURIComponent(`space.meeting_code="${meetCode}"`)}`);
