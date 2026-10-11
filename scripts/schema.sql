@@ -91,3 +91,10 @@ alter table decks add column if not exists slides_early boolean;
 alter table meetings add column if not exists transcript_at timestamptz;
 alter table meetings add column if not exists transcript_checked_at timestamptz;
 alter table meetings add column if not exists auto_transcribe text;
+
+-- Partner applications (public /join form). Existing users stay 'approved';
+-- people who apply are inserted as 'pending' and cannot sign in until an admin
+-- approves them (lib/applications.ts).
+alter table users add column if not exists status text not null default 'approved';
+alter table users add column if not exists experience text;
+alter table users add column if not exists applied_at timestamptz;

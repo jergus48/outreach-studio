@@ -23,7 +23,7 @@ export async function POST(req: Request) {
   const assign = String(body.assignTo || 'me');
   let owners: number[] = [s.uid];
   if (assign === 'split') {
-    const callers = await q("select id from users where role='user' order by id");
+    const callers = await q("select id from users where role='user' and coalesce(to_jsonb(users)->>'status','approved')='approved' order by id");
     if (callers.length) owners = callers.map((c: any) => c.id);
   } else if (/^\d+$/.test(assign)) {
     const u = await q('select id from users where id=$1', [Number(assign)]);

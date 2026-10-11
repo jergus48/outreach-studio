@@ -24,7 +24,7 @@ function CountryPick({ value, onChange, placeholder }: { value: string; onChange
   );
 }
 
-type U = { id: number; email: string; role: string; country?: string | null; decks: number; tokens: number };
+type U = { id: number; email: string; role: string; country?: string | null; decks: number; tokens: number; status?: string; experience?: string | null; applied_at?: string | null };
 type Stats = {
   days: number;
   totals: { calls: number; interested: number; meetings: number; emails: number; companies: number };
@@ -83,6 +83,10 @@ export default function Admin() {
   const [fo, setFo] = useState('');
   const [fc, setFc] = useState('');
   const [users, setUsers] = useState<U[]>([]);
+  // Applicants from the public /join form wait here until approved; they are not real users yet.
+  const pending = users.filter((u) => u.status === 'pending');
+  const members = users.filter((u) => u.status !== 'pending');
+  const [appCountry, setAppCountry] = useState<Record<number, string>>({});
   const [err, setErr] = useState('');
   const [f, setF] = useState({ email: '', password: '', role: 'user', country: '' });
 
@@ -113,7 +117,7 @@ export default function Admin() {
 
   const shownCos = cos;
   const allSel = shownCos.length > 0 && shownCos.every((c) => sel.has(c.id));
-  const callersFor = (c: Co) => users.filter((u) => u.role !== 'admin' && u.country && (u.country || '').split(',').includes(c.country || ''));
+  const callersFor = (c: Co) => members.filter((u) => u.role !== 'admin' && u.country && (u.country || '').split(',').includes(c.country || ''));
   async function deleteAllMatching() {
     if (!cTotal || !confirm(`Delete ALL ${cTotal} companies matching this filter, with their decks and call log?`)) return;
     const r = await fetch('/api/admin/companies', { method: 'DELETE', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ all: true, q: cq.trim(), country: cCountry, sector: cSector, state: cState }) });
@@ -153,6 +157,12 @@ export default function Admin() {
     loadCalls();
   }
 
+  async function decide(u: U, action: 'approve' | 'reject') {
+    if (action === 'reject' && !confirm(`Reject ${u.email}? The application is deleted.`)) return;
+    await fetch('/api/admin/applications', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: u.id, action, country: appCountry[u.id] || null }) });
+    loadUsers();
+  }
+
   const max = Math.max(1, ...(stats?.perDay || []).map((d) => d.n));
   const t = stats?.totals;
   const csv = `/api/admin/calls?format=csv&days=${days}${fu ? `&user=${fu}` : ''}${fo ? `&outcome=${fo}` : ''}${fc ? `&country=${fc}` : ''}`;
@@ -171,7 +181,7 @@ export default function Admin() {
           <button className={tab === 'calls' ? 'on' : ''} onClick={() => setTab('calls')}>Call dashboard</button>
           <button className={tab === 'meetings' ? 'on' : ''} onClick={() => setTab('meetings')}>Meetings</button>
           <button className={tab === 'companies' ? 'on' : ''} onClick={() => setTab('companies')}>Companies</button>
-          <button className={tab === 'users' ? 'on' : ''} onClick={() => setTab('users')}>Users</button>
+          <button className={tab === 'users' ? 'on' : ''} onClick={() => setTab('users')}>Users{pending.length > 0 ? ` (${pending.length} new)` : ''}</button>
         </div>
         {tab === 'calls' && (
           <select value={days} onChange={(e) => setDays(Number(e.target.value))} style={{ marginLeft: 'auto' }}>
@@ -352,6 +362,22 @@ export default function Admin() {
 
       {tab === 'users' && (
         <>
+          {pending.length > 0 && (
+            <div className="card apps">
+              <h3>PARTNER APPLICATIONS ({pending.length})</h3>
+              {pending.map((u) => (
+                <div className="app" key={u.id}>
+                  <div className="who"><b>{u.email}</b><span className="pill">{u.applied_at ? `applied ${ago(u.applied_at)}` : 'pending'}</span></div>
+                  <div className="exp">{u.experience || '(no experience given)'}</div>
+                  <div className="acts">
+                    <CountryPick value={appCountry[u.id] || ''} placeholder="Country: set later" onChange={(v) => setAppCountry({ ...appCountry, [u.id]: v })} />
+                    <button className="btn sm" onClick={() => decide(u, 'approve')}>Approve</button>
+                    <button className="btn ghost sm" onClick={() => decide(u, 'reject')}>Reject</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="card" style={{ marginBottom: 18 }}>
             <h3>ADD USER</h3>
             <form className="row" onSubmit={add}>
@@ -366,7 +392,7 @@ export default function Admin() {
           <div className="card">
             <table className="t">
               <thead><tr><th>EMAIL</th><th>ROLE</th><th>CALLS COMPANIES FROM</th><th>DECKS</th><th>TOKENS USED</th><th></th></tr></thead>
-              <tbody>{users.map((u) => (
+              <tbody>{members.map((u) => (
                 <tr key={u.id}><td>{u.email}</td><td><span className="pill">{u.role}</span></td>
                   <td>{u.role === 'admin' ? <span style={{ color: 'var(--mute)' }}>all</span> : (
                     <CountryPick value={u.country || ''} placeholder="Not set (sees nothing)" onChange={async (v) => { await fetch('/api/admin/users', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: u.id, country: v }) }); loadUsers(); }} />)}</td><td>{u.decks}</td><td>{u.tokens.toLocaleString()}</td>
