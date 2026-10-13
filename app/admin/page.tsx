@@ -37,7 +37,7 @@ type Stats = {
 type Co = { id: number; name: string; website?: string; phone?: string; country?: string; sector?: string | null; last_outcome?: string; last_at?: string; last_by?: string; call_count: number };
 type Feed = { id: number; outcome: string; note?: string; followup_at?: string; created_at: string; user_email?: string; name: string; website?: string; country?: string; phone?: string };
 
-type Mt = { id: number; start_at: string; end_at: string; meet_url?: string; attendee_email?: string; transcript_state?: string; auto_transcribe?: string; cohost?: string; transcript_at?: string; transcript_checked_at?: string; has_transcript: boolean; name: string; user_email?: string };
+type Mt = { id: number; start_at: string; end_at: string; meet_url?: string; attendee_email?: string; transcript_state?: string; auto_transcribe?: string; transcript_at?: string; transcript_checked_at?: string; has_transcript: boolean; name: string; user_email?: string };
 const when = (s?: string) => (s ? new Date(s).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-');
 
 const pct =(a: number, b: number) => (b ? Math.round((a / b) * 100) + '%' : '-');
@@ -300,7 +300,7 @@ export default function Admin() {
                       <td style={{ whiteSpace: 'nowrap' }}>{when(m.start_at)} - {new Date(m.end_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                       <td><b>{m.name}</b><div style={{ color: 'var(--mute)', fontSize: 12 }}>{m.attendee_email}</div></td>
                       <td>{m.user_email || '-'}</td>
-                      <td style={{ fontSize: 12, color: m.auto_transcribe === 'on' ? 'var(--g)' : '#ff8f8f' }}>{m.auto_transcribe === 'on' ? 'On' : m.auto_transcribe ? 'Not on (start it in the call)' : 'Unknown'}<div style={{ color: m.cohost === 'ok' ? 'var(--g)' : 'var(--mute)' }} title={m.cohost || ''}>{m.cohost === 'ok' ? 'Caller is co-host' : m.cohost?.startsWith('failed') ? 'Co-host failed: ' + m.cohost.slice(8, 80) : ''}</div></td>
+                      <td style={{ fontSize: 12, color: m.auto_transcribe === 'on' ? 'var(--g)' : '#ff8f8f' }}>{m.auto_transcribe === 'on' ? 'On' : m.auto_transcribe ? 'Not on (start it in the call)' : 'Unknown'}</td>
                       <td style={{ fontSize: 13, color: m.has_transcript ? 'var(--g)' : 'var(--mute)' }}>{status}</td>
                       <td>{m.has_transcript && <button className="btn ghost sm" onClick={() => openTx(m.id)}>{mOpen === m.id ? 'Hide' : 'Show'}</button>}</td>
                     </tr>

@@ -4,7 +4,6 @@ export const SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/meetings.space.readonly',
   'https://www.googleapis.com/auth/meetings.space.settings',
-  'https://www.googleapis.com/auth/meetings.space.created',
 ];
 
 const hasClient = () => !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
@@ -80,41 +79,22 @@ export async function primaryCalendarEmail() {
   return j.summary as string;
 }
 
-// The Meet space is created through the Meet API, not by Calendar: Calendar-made spaces cannot be edited by the app
-// (adding a co-host returns 403). OPEN access lets invited guests in without anyone admitting them, since the host may join late.
 export async function createMeeting(o: { summary: string; description?: string; start: string; end: string; timeZone: string; attendees: string[] }) {
-  let sp: any = null;
-  try { sp = await gjson('https://meet.googleapis.com/v2/spaces', { method: 'POST', body: JSON.stringify({ config: { accessType: 'OPEN' } }) }); } catch { /* fall back to a Calendar-made Meet below */ }
-  if (!sp) {
-    const j = await gjson('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all', {
-      method: 'POST',
-      body: JSON.stringify({
-        summary: o.summary,
-        description: o.description || '',
-        start: { dateTime: o.start, timeZone: o.timeZone },
-        end: { dateTime: o.end, timeZone: o.timeZone },
-        attendees: o.attendees.map((email) => ({ email })),
-        conferenceData: { createRequest: { requestId: crypto.randomUUID(), conferenceSolutionKey: { type: 'hangoutsMeet' } } },
-      }),
-    });
-    return { eventId: j.id as string, meetUrl: (j.hangoutLink as string) || null, meetCode: (j.conferenceData?.conferenceId as string) || null, htmlLink: (j.htmlLink as string) || null };
-  }
-  const meetUrl = (sp.meetingUri as string) || null;
-  const j = await gjson('https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=all', {
+  const j = await gjson('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all', {
     method: 'POST',
     body: JSON.stringify({
       summary: o.summary,
-      description: [o.description || '', meetUrl ? `Google Meet: ${meetUrl}` : ''].filter(Boolean).join('\n\n'),
-      location: meetUrl || undefined,
+      description: o.description || '',
       start: { dateTime: o.start, timeZone: o.timeZone },
       end: { dateTime: o.end, timeZone: o.timeZone },
       attendees: o.attendees.map((email) => ({ email })),
+      conferenceData: { createRequest: { requestId: crypto.randomUUID(), conferenceSolutionKey: { type: 'hangoutsMeet' } } },
     }),
   });
   return {
     eventId: j.id as string,
-    meetUrl,
-    meetCode: (sp.meetingCode as string) || null,
+    meetUrl: (j.hangoutLink as string) || null,
+    meetCode: (j.conferenceData?.conferenceId as string) || null,
     htmlLink: (j.htmlLink as string) || null,
   };
 }
@@ -126,16 +106,6 @@ export async function enableAutoTranscription(meetCode: string) {
   await gjson(`https://meet.googleapis.com/v2/${sp.name}?updateMask=config.artifactConfig.transcriptionConfig.autoTranscriptionGeneration`, {
     method: 'PATCH',
     body: JSON.stringify({ config: { artifactConfig: { transcriptionConfig: { autoTranscriptionGeneration: 'ON' } } } }),
-  });
-}
-
-// Meet only starts auto-transcription once the host or a co-host joins on the web, so the caller must be a co-host.
-// Uses the v2 members API (spaces.members.create) and needs the meetings.space.created scope (reconnect Google after it was added).
-export async function addCoHost(meetCode: string, email: string) {
-  const sp = await gjson(`https://meet.googleapis.com/v2/spaces/${encodeURIComponent(meetCode)}`);
-  await gjson(`https://meet.googleapis.com/v2/${sp.name}/members`, {
-    method: 'POST',
-    body: JSON.stringify({ email, role: 'COHOST' }),
   });
 }
 
