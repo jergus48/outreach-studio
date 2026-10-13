@@ -111,10 +111,10 @@ export async function enableAutoTranscription(meetCode: string) {
 }
 
 // Meet only starts auto-transcription once the host or a co-host joins on the web, so the caller must be a co-host.
-// Uses the v2beta members API (Developer Preview) and needs the meetings.space.created scope (reconnect Google after it was added).
+// Uses the v2 members API (spaces.members.create) and needs the meetings.space.created scope (reconnect Google after it was added).
 export async function addCoHost(meetCode: string, email: string) {
   const sp = await gjson(`https://meet.googleapis.com/v2/spaces/${encodeURIComponent(meetCode)}`);
-  await gjson(`https://meet.googleapis.com/v2beta/${sp.name}/members`, {
+  await gjson(`https://meet.googleapis.com/v2/${sp.name}/members`, {
     method: 'POST',
     body: JSON.stringify({ email, role: 'COHOST' }),
   });
