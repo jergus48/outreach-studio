@@ -24,20 +24,30 @@ const STATUS: Record<string, string> = {
 export async function GET(req: Request) {
   const s = (await getSession())!;
   const u = new URL(req.url).searchParams;
+  const params: any[] = [s.uid, s.role === 'admin'];
   const vis = `(($2::boolean or c.country=any(string_to_array((select u0.country from users u0 where u0.id=$1),chr(44)))) and btrim(coalesce(c.website,''))<>'')`;
+  const conds: string[] = [];
+  const text = (u.get('q') || '').trim().toLowerCase();
+  if (text) { params.push(`%${text}%`); const n = params.length; conds.push(`(${['c.name', 'c.website', 'c.email', 'c.phone', 'c.sector'].map((f) => `lower(coalesce(${f},'')) like $${n}`).join(' or ')})`); }
+  const country = u.get('country') || '';
+  if (country && country !== 'all') { params.push(country); conds.push(`c.country=$${params.length}`); }
+  const sector = u.get('sector') || '';
+  if (sector && sector !== 'all') { params.push(sector); conds.push(`c.sector=$${params.length}`); }
+  const status = STATUS[u.get('filter') || ''];
+
   const from = (where: string) => `from (select c.*, (c.id=any(keys.ids) or dom(c.website)=any(keys.doms) or lower(c.name)=any(keys.names)) as touched from companies c cross join keys where ${where}) v ${LAST}`;
+  const allConds = [vis, ...conds].join(' and ');
 
   const statsP = q(
     `with ${KEYS} select count(*)::int total,
         count(*) filter (where coalesce(cnt.n,0)=0)::int never,
         count(*) filter (where ${DUE})::int due,
         count(*) filter (where lc.outcome in ('interested','meeting_booked','email_sent'))::int good
-     ${from(vis)}`,
-    [s.uid, s.role === 'admin']
+     ${from(allConds)} ${status ? 'where ' + status : ''}`,
+    params
   );
 
-  const country = u.get('country') || '';
-  const status = STATUS[u.get('filter') || ''];
+  // Sector list follows country and status filters (not the sector or text filters).
   const secParams: any[] = [s.uid, s.role === 'admin'];
   const secConds = [vis, `c.sector is not null`, `c.sector<>''`];
   if (country && country !== 'all') { secParams.push(country); secConds.push(`c.country=$${secParams.length}`); }

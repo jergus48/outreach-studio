@@ -93,7 +93,7 @@ export default function Dashboard({ email, admin }: { email: string; admin: bool
   }
   async function loadStats() {
     const c = query.current;
-    const p = new URLSearchParams({ filter: c.filter, country: c.cfilter });
+    const p = new URLSearchParams({ q: c.q.trim(), filter: c.filter, country: c.cfilter, sector: c.sfilter });
     const id = ++statsId.current;
     setStats(null);
     try {
