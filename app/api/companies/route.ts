@@ -27,7 +27,7 @@ const STATUS: Record<string, string> = {
   not_interested: `lc.outcome in ('not_interested','wrong_number')`,
 };
 
-// Paged: ?q=&filter=&country=&sector=&smart=1&page=0. Also returns whole-list stats and the sector list.
+// Paged: ?q=&filter=&country=&sector=&smart=1&page=0. Stats and sectors are served by /api/companies/stats.
 export async function GET(req: Request) {
   const s = (await getSession())!;
   const u = new URL(req.url).searchParams;
@@ -74,26 +74,7 @@ export async function GET(req: Request) {
      where c.id = any($2::int[]) order by array_position($2::int[], c.id)`,
     [s.uid, ids]
   ) : [];
-
-  const st = (await q(
-    `with ${KEYS} select count(*)::int total,
-        count(*) filter (where coalesce(cnt.n,0)=0)::int never,
-        count(*) filter (where ${DUE})::int due,
-        count(*) filter (where lc.outcome in ('interested','meeting_booked','email_sent'))::int good
-     ${from(vis)}`,
-    [s.uid, s.role === 'admin']
-  ))[0];
-  // Sector list follows the country and status filters (not the sector or text filters)
-  const secParams: any[] = [s.uid, s.role === 'admin'];
-  const secConds = [vis, `c.sector is not null`, `c.sector<>''`];
-  if (country && country !== 'all') { secParams.push(country); secConds.push(`c.country=$${secParams.length}`); }
-  const sectors = await q(
-    status
-      ? `with ${KEYS} select v.sector, count(*)::int n ${from(secConds.join(' and '))} where ${status} group by v.sector order by n desc, v.sector`
-      : `select c.sector, count(*)::int n from companies c where ${secConds.join(' and ')} group by c.sector order by n desc, c.sector`,
-    secParams
-  );
-  return NextResponse.json({ rows, total, page, pageSize: PAGE, stats: st, sectors });
+  return NextResponse.json({ rows, total, page, pageSize: PAGE });
 }
 
 export async function POST(req: Request) {

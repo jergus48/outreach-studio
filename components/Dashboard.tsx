@@ -67,15 +67,15 @@ export default function Dashboard({ email, admin }: { email: string; admin: bool
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
   const [sectors, setSectors] = useState<[string, number][]>([]);
-  const [stats, setStats] = useState({ total: 0, never: 0, due: 0, good: 0 });
+  const [stats, setStats] = useState<{ total: number; never: number; due: number; good: number } | null>(null);
   const PAGE = 200;
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const reqId = useRef(0);
+  const statsId = useRef(0);
   const query = useRef({ q: '', filter: 'all', cfilter: 'all', sfilter: 'all', smart: true, page: 0 });
   query.current = { q, filter, cfilter, sfilter, smart, page };
 
-  // Only the current page (200 rows) is loaded; filters and ordering run on the server.
   async function load() {
     const c = query.current;
     const p = new URLSearchParams({ q: c.q.trim(), filter: c.filter, country: c.cfilter, sector: c.sfilter, smart: c.smart ? '1' : '0', page: String(c.page) });
@@ -86,15 +86,29 @@ export default function Dashboard({ email, admin }: { email: string; admin: bool
       if (!r.ok || id !== reqId.current) return;
       const j = await r.json();
       if (id !== reqId.current) return;
-      setRows(j.rows); setTotal(j.total); setStats(j.stats); setSectors(j.sectors.map((x: any) => [x.sector, x.n]));
-      if (c.sfilter !== 'all' && !j.sectors.some((x: any) => x.sector === c.sfilter)) setSfilter('all');
+      setRows(j.rows); setTotal(j.total);
     } finally {
       if (id === reqId.current) { setLoading(false); setLoaded(true); }
     }
   }
+  async function loadStats() {
+    const c = query.current;
+    const p = new URLSearchParams({ filter: c.filter, country: c.cfilter });
+    const id = ++statsId.current;
+    setStats(null);
+    try {
+      const r = await fetch('/api/companies/stats?' + p);
+      if (!r.ok || id !== statsId.current) return;
+      const j = await r.json();
+      if (id !== statsId.current) return;
+      setStats(j.stats);
+      setSectors(j.sectors.map((x: any) => [x.sector, x.n]));
+      if (c.sfilter !== 'all' && !j.sectors.some((x: any) => x.sector === c.sfilter)) setSfilter('all');
+    } catch { /* stats are non-critical */ }
+  }
   useEffect(() => { setPage(0); }, [q, filter, cfilter, sfilter, smart]);
   useEffect(() => {
-    const t = setTimeout(load, q ? 300 : 0);
+    const t = setTimeout(() => { load(); loadStats(); }, q ? 300 : 0);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, filter, cfilter, sfilter, smart, page]);
@@ -219,10 +233,17 @@ export default function Dashboard({ email, admin }: { email: string; admin: bool
       </div>
 
       <div className="kpi-row">
-        <div className="kpi"><b>{stats.total}</b><span>companies</span></div>
-        <div className="kpi"><b>{stats.never}</b><span>never called</span></div>
-        <div className={'kpi' + (stats.due ? ' hot' : '')}><b>{stats.due}</b><span>follow-ups due</span></div>
-        <div className="kpi good"><b>{stats.good}</b><span>interested / meeting / email sent</span></div>
+        {stats ? <>
+          <div className="kpi"><b>{stats.total}</b><span>companies</span></div>
+          <div className="kpi"><b>{stats.never}</b><span>never called</span></div>
+          <div className={'kpi' + (stats.due ? ' hot' : '')}><b>{stats.due}</b><span>follow-ups due</span></div>
+          <div className="kpi good"><b>{stats.good}</b><span>interested / meeting / email sent</span></div>
+        </> : <>
+          <div className="kpi"><b style={{ opacity: 0.3 }}>&hellip;</b><span>companies</span></div>
+          <div className="kpi"><b style={{ opacity: 0.3 }}>&hellip;</b><span>never called</span></div>
+          <div className="kpi"><b style={{ opacity: 0.3 }}>&hellip;</b><span>follow-ups due</span></div>
+          <div className="kpi good"><b style={{ opacity: 0.3 }}>&hellip;</b><span>interested / meeting / email sent</span></div>
+        </>}
       </div>
 
       {admin && (
@@ -361,7 +382,7 @@ export default function Dashboard({ email, admin }: { email: string; admin: bool
               );
             })}
             {!loaded && <tr><td colSpan={6}><div className="loadrow"><span className="spinner" />Loading companies...</div></td></tr>}
-            {loaded && !shown.length && <tr><td colSpan={6} style={{ color: 'var(--mute)', padding: 24 }}>{stats.total ? 'Nothing matches this filter.' : admin ? 'No companies yet. Add one above or upload a spreadsheet.' : 'No companies for your country yet. Ask your admin to check the country set for you.'}</td></tr>}
+            {loaded && !shown.length && <tr><td colSpan={6} style={{ color: 'var(--mute)', padding: 24 }}>{total ? 'Nothing matches this filter.' : admin ? 'No companies yet. Add one above or upload a spreadsheet.' : 'No companies for your country yet. Ask your admin to check the country set for you.'}</td></tr>}
           </tbody>
         </table>
         {total > PAGE && (
