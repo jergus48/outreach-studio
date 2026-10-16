@@ -1,6 +1,7 @@
 'use client';
 import { createContext, useContext, useState } from 'react';
 import { FIXED, Lang } from '@/lib/fixed';
+import { EXTRA } from '@/lib/lang';
 import { S_BR, S_TR } from '@/lib/swatermark';
 
 /* All geometry below is in the original 1080x608 design pixels, scaled by --u (= slide width / 1080). */
@@ -27,7 +28,6 @@ function E({ path, children, as: Tag = 'span' }: { path: string; children: strin
 }
 
 const hl = (t: string) => t.split(/(⟦.*?⟧)/).map((p, i) => (p.startsWith('⟦') ? <mark key={i}>{p.slice(1, -1)}</mark> : <span key={i}>{p}</span>));
-const WHERE: Record<Lang, string> = { lt: 'Kur tai pritaikoma', en: 'Where it fits', de: 'Wo es passt' };
 const TOTAL = 23;
 
 function Watermark({ shape, style }: { shape: { d: string; rect: number[] }; style?: any }) {
@@ -244,7 +244,7 @@ export default function Deck({ slides, lang, edit = false, deckId }: { slides: a
         <Slide n={next()} dark>
           <Watermark shape={S_BR} />
           <Lab y={205.4}>10 — {f.ideasLabel} · {name.toUpperCase()}</Lab>
-          <h2 className="h" style={{ top: U(233.5), fontSize: U(55.5), lineHeight: U(55), maxWidth: U(330) }}>{WHERE[lang]}</h2>
+          <h2 className="h" style={{ top: U(233.5), fontSize: U(55.5), lineHeight: U(55), maxWidth: U(330) }}>{EXTRA[lang].where}</h2>
           <p className="lead abs" style={{ top: U(364.5), fontSize: U(14.2), lineHeight: U(23), width: U(480) }}><E path="ideasIntro.text">{S.ideasIntro?.text || ''}</E></p>
         </Slide>
 
@@ -279,7 +279,7 @@ export default function Deck({ slides, lang, edit = false, deckId }: { slides: a
         {/* 22 questions */}
         <Slide n={next()}>
           <Lab y={54}>11 — {f.qLabel}</Lab>
-          <H y={76} w={560}>{lang === 'lt' ? 'Ką automatizuojame pirmiausia?' : lang === 'de' ? 'Was automatisieren wir zuerst?' : 'What do we automate first?'}</H>
+          <H y={76} w={560}>{EXTRA[lang].ask}</H>
           <div className="box" style={{ left: U(63), top: U(173), width: U(954), height: U(299) }} />
           <div className="line v dk" style={{ left: U(539.5), top: U(173), height: U(299) }} />
           <div className="line h dk" style={{ left: U(63), top: U(331), width: U(954) }} />

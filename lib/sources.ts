@@ -1,7 +1,15 @@
 // Cheat sheet for callers, in all three languages. Edit this file to add facts or change answers;
 // the Sources page renders it. Only put in things that are true. If a caller is asked something not
 // covered here, they say they will confirm it on the video call, never improvise.
-import { Lang } from './fixed';
+import type { Lang } from './fixed';
+import { src as fr } from './lang/fr';
+import { src as lv } from './lang/lv';
+import { src as da } from './lang/da';
+import { src as no } from './lang/no';
+import { src as sv } from './lang/sv';
+import { src as fi } from './lang/fi';
+import { src as pt } from './lang/pt';
+import { src as es } from './lang/es';
 
 export type Src = {
   ui: { who: string; pitch: string; flow: string; build: string; work: string; ways: string; faq: string; projects: string };
@@ -147,4 +155,4 @@ const de: Src = {
   ],
 };
 
-export const SRC: Record<Lang, Src> = { en, lt, de };
+export const SRC: Record<Lang, Src> = { en, lt, de, fr, lv, da, no, sv, fi, pt, es };

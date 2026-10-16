@@ -2,6 +2,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import CallLogger from './CallLogger';
 import { COUNTRIES, langFor } from '@/lib/countries';
+import { LANGS, LANG_NAMES } from '@/lib/fixed';
 import { ago, outcomeLabel, outcomeTone } from '@/lib/outcomes';
 
 type Deck = { id: number; lang: string; share_token: string; created_at: string; has_slides?: boolean; has_presenter?: boolean; slides_early?: boolean };
@@ -353,7 +354,7 @@ export default function Dashboard({ email, admin }: { email: string; admin: bool
                       <div className="row">
                         <button className={'btn sm' + (c.call_count ? ' ghost' : '')} onClick={() => setOpen(open === c.id ? null : c.id)}>{open === c.id ? 'Close' : 'Log call'}</button>
                         <select value={l} onChange={(e) => setLang({ ...lang, [c.id]: e.target.value })}>
-                          <option value="lt">Lietuvių</option><option value="en">English</option><option value="de">Deutsch</option>
+                          {LANGS.map((x) => <option key={x} value={x}>{LANG_NAMES[x]}</option>)}
                         </select>
                         {ex ? (
                           <>

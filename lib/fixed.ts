@@ -1,6 +1,14 @@
-export type Lang = 'lt' | 'en' | 'de';
-export const LANGS: Lang[] = ['lt', 'en', 'de'];
-export const LANG_NAMES: Record<Lang, string> = { lt: 'Lietuvių', en: 'English', de: 'Deutsch' };
+import { fixed as fr } from './lang/fr';
+import { fixed as lv } from './lang/lv';
+import { fixed as da } from './lang/da';
+import { fixed as no } from './lang/no';
+import { fixed as sv } from './lang/sv';
+import { fixed as fi } from './lang/fi';
+import { fixed as pt } from './lang/pt';
+import { fixed as es } from './lang/es';
+export type Lang = 'lt' | 'en' | 'de' | 'fr' | 'lv' | 'da' | 'no' | 'sv' | 'fi' | 'pt' | 'es';
+export const LANGS: Lang[] = ['lt', 'en', 'de', 'fr', 'lv', 'da', 'no', 'sv', 'fi', 'pt', 'es'];
+export const LANG_NAMES: Record<Lang, string> = { lt: 'Lietuvių', en: 'English', de: 'Deutsch', fr: 'Français', lv: 'Latviešu', da: 'Dansk', no: 'Norsk', sv: 'Svenska', fi: 'Suomi', pt: 'Português', es: 'Español' };
 
 type Work = { tag: string; name: string; sub: string; problem: string; solution: string; stats: [string, string][]; img: string };
 
@@ -159,4 +167,4 @@ const de: Fixed = {
   closeLabel: 'GEMEINSAM BAUEN', ideasLabel: 'IDEEN',
 };
 
-export const FIXED: Record<Lang, Fixed> = { lt, en, de };
+export const FIXED: Record<Lang, Fixed> = { lt, en, de, fr, lv, da, no, sv, fi, pt, es };

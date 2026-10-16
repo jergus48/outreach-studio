@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { q } from '@/lib/db';
 import { VALID_OUTCOMES, outcomeLabel } from '@/lib/outcomes';
+import { COUNTRIES } from '@/lib/countries';
 
 export async function GET(req: Request) {
   const sp = new URL(req.url).searchParams;
@@ -12,7 +13,7 @@ export async function GET(req: Request) {
   let where = `k.created_at > now() - interval '${days} days'`;
   if (user && /^\d+$/.test(user)) { params.push(Number(user)); where += ` and k.user_id=$${params.length}`; }
   if (outcome && VALID_OUTCOMES.includes(outcome)) { params.push(outcome); where += ` and k.outcome=$${params.length}`; }
-  if (country && ['lt', 'de', 'at', 'ch', 'other'].includes(country)) { params.push(country); where += ` and c.country=$${params.length}`; }
+  if (country && COUNTRIES.some((x) => x.code === country)) { params.push(country); where += ` and c.country=$${params.length}`; }
   const rows = await q(
     `select k.id,k.outcome,k.note,k.followup_at::text as followup_at,k.created_at,u.email as user_email,c.id as company_id,c.name,c.website,c.country,c.phone,c.email as company_email
      from calls k join companies c on c.id=k.company_id left join users u on u.id=k.user_id

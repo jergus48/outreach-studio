@@ -1,12 +1,9 @@
 import { llmJson } from './llm';
 import { readSite, webSearch, normUrl, logoTone } from './research';
 import { FIXED, Lang } from './fixed';
+import { EXTRA } from './lang';
 
-const LANG_FULL: Record<Lang, string> = {
-  lt: 'Lithuanian (formal "Jūs" register)',
-  en: 'English',
-  de: 'German (formal "Sie" register)',
-};
+const LANG_FULL = Object.fromEntries(Object.entries(EXTRA).map(([k, v]) => [k, v.llm])) as Record<Lang, string>;
 
 export type Company = { id: number; name: string; email?: string; phone?: string; website?: string; logo_url?: string };
 

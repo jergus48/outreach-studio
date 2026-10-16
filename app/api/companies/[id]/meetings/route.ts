@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { q } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { createMeeting, enableAutoTranscription } from '@/lib/google';
+import { langFor } from '@/lib/countries';
+import { EXTRA } from '@/lib/lang';
 
 async function company(s: { uid: number; role: string }, id: string) {
   const r = await q('select * from companies where id=$1 and ($3::boolean or country=any(string_to_array((select u0.country from users u0 where u0.id=$2),chr(44))))', [id, s.uid, s.role === 'admin']);
@@ -42,12 +44,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const t = (d: Date) => new Date(d).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: String(b.timeZone || 'Europe/Vilnius') });
     return NextResponse.json({ clash: true, error: `You already have a call with ${clash.name} at ${t(clash.start_at)}-${t(clash.end_at)}.` }, { status: 409 });
   }
-  const lang = ['de', 'at', 'ch'].includes(c.country) ? 'de' : c.country === 'lt' ? 'lt' : 'en';
-  const intro = {
-    en: `Hi,\n\nThank you for your time on the phone. As agreed, here is our Google Meet where we will walk you through a short presentation prepared for ${c.name} and show examples of our previous work.`,
-    lt: `Sveiki,\n\nDekojame uz pokalbi telefonu. Kaip susitareme, siunciame Google Meet nuoroda, kurioje parodysime jums, ${c.name}, paruosta trumpa pristatyma ir ankstesnius musu darbus.`,
-    de: `Guten Tag,\n\nvielen Dank fuer das Telefonat. Wie besprochen finden Sie hier unser Google Meet, in dem wir Ihnen eine kurze, fuer ${c.name} vorbereitete Praesentation und Beispiele unserer bisherigen Arbeit zeigen.`,
-  }[lang];
+  const intro = EXTRA[langFor(c.country)].meetIntro(c.name);
   const caller = String(b.callerEmail || '').trim();
   if (caller && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(caller)) return NextResponse.json({ error: 'Enter a valid email for yourself' }, { status: 400 });
   const description = [
